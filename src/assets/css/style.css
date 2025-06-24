@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-fib: #40967f;
+}

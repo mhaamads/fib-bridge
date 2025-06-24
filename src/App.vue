@@ -1,0 +1,151 @@
+<template>
+  <div class="p-5 gap-3 max-w-sm m-auto flex flex-col items-center">
+    <div @dblclick="setClientData" :class="isFIB ? 'bg-fib' : 'bg-red-500'"
+      class=" fixed bottom-5 end-5 text-white  aspect-square h-10 grid place-content-center rounded-full">
+      FIB
+    </div>
+    <div class="flex gap-3 w-full">
+      <button class="tab" :class="environment === 'dev' ? 'active' : 'inactive'"
+        @click="environment = 'dev'">DEV</button>
+      <button class="tab" :class="environment === 'stage' ? 'active' : 'inactive'"
+        @click="environment = 'stage'">STAGE</button>
+      <button class="tab" :class="environment === 'prod' ? 'active' : 'inactive'"
+        @click="environment = 'prod'">PROD</button>
+    </div>
+    <div
+      class="code tracking-widest  h-12 border w-full flex items-center justify-center text-sm border-black/20 rounded-md">
+      {{ ssoAuthorizationCode ?? 'SSO Authorization Code' }}
+    </div>
+    <input v-model="clientIdentifier" type="text" placeholder="Client Identifier"
+      class="border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3" />
+    <input v-model="clientSecret" type="text" placeholder="Client Secret"
+      class="border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3" />
+    <button class="h-12 bg-sky-600" type="button" @click="startSSO" :disabled="!clientIdentifier || !clientSecret">
+      Get SSO Authorization Code
+    </button>
+    <button class="h-12 bg-indigo-600" type="button" @click="fetchUser" :disabled="!ssoAuthorizationCode">
+      Fetch User
+    </button>
+    <button class="h-12 bg-lime-600" type="button" @click="registerBridge" :disabled="!isFIB">
+      Register Bridge
+    </button>
+    <button class="h-12 bg-sky-600" type="button" @click="authenticateBridge" :disabled="!ssoAuthorizationCode">
+      Authenticate Bridge
+    </button>
+
+    <input v-model="transactionId" type="text" placeholder="Transaction ID"
+      class="border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3" />
+
+    <button class="h-12 bg-fib" type="button" @click="payment" :disabled="!transactionId || !ssoAuthorizationCode">
+      Payment
+    </button>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, ref } from 'vue';
+import useSingleSignOn from '@/composables/useSingleSignOn';
+import { useFIBNativeBridge } from '@/composables/useFIBNativeBridge';
+
+const { registerBridge, sendMessage, on } = useFIBNativeBridge();
+
+const clientIdentifier = ref()
+const clientSecret = ref()
+const environment = ref('dev')
+
+const ssoAuthorizationCode = ref()
+const transactionId = ref()
+
+const getUserDetails = ref()
+
+
+const isFIB = !!(window?.AndroidInterface || window.webkit?.messageHandlers?.FIBNativeBridge)
+
+const useSSO = () => {
+  const { initiate, getUserDetails: getDetails } = useSingleSignOn(
+    clientIdentifier.value,
+    clientSecret.value,
+    environment.value // or 'prod', etc.
+  );
+  getUserDetails.value = getDetails
+  return { initiate }
+}
+
+const startSSO = async () => {
+  try {
+    const { initiate } = useSSO()
+    const { ssoAuthorizationCode: code } = await initiate();
+    ssoAuthorizationCode.value = code;
+  } catch (error) {
+    console.log(error);
+    
+    alert(error)
+  }
+};
+
+const fetchUser = async (code) => {
+  try {
+    const userData = await getUserDetails(code);
+    alert(userData)
+  } catch (error) {
+    alert(error)
+  }
+};
+
+const setClientData = () => {
+  clientIdentifier.value = "SangarSSOTest"
+  clientSecret.value = "9e3d6b9f-c87d-49f9-9c74-babe76b21c12"
+}
+
+const authenticateBridge = () => {
+  sendMessage({
+    type: 'AUTHENTICATE',
+    body: { readableId: ssoAuthorizationCode.value }
+  });
+}
+
+const payment = () => {
+  window.FIBNativeBridge.sendMessage({
+    type: "PAYMENT",
+    body: { transactionId: transactionId.value, readableId: ssoAuthorizationCode.value }
+  })
+}
+
+onMounted(() => {
+  window.FIBNativeBridge.addEventListener("AUTHENTICATED", async (event) => {
+    alert(`user is Authenticated : ${event}`)
+  })
+  window.FIBNativeBridge.addEventListener("AUTHENTICATION_FAILED", async (event) => {
+    alert(`user Authenticated Failed ${event}`)
+  })
+  window.FIBNativeBridge.addEventListener("PAYMENT_SUCCESSFULLY_PAID", async (event) => {
+    const { transactionId } = event.detail.body
+    alert(`Payment Successfully Paid ${transactionId}`)
+  })
+  window.FIBNativeBridge.addEventListener("PAYMENT_FAILED", async (event) => {
+    const { transactionId, reason } = event.detail.body
+    alert(`Payment Successfully Paid ${transactionId} , ${reason}`)
+  })
+});
+
+</script>
+
+<style>
+@reference "@/assets/css/style.css";
+
+button {
+  @apply w-full px-5 flex items-center justify-center rounded-md text-white cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-400 uppercase font-semibold text-sm
+}
+
+.tab {
+  @apply w-full text-sm flex items-center justify-center px-3 border
+}
+
+.tab.active {
+  @apply bg-fib h-10 border-fib text-white
+}
+
+.tab.inactive {
+  @apply border-black/20 !text-neutral-950 bg-transparent
+}
+</style>
