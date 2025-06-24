@@ -12,14 +12,12 @@
       <button class="tab" :class="environment === 'prod' ? 'active' : 'inactive'"
         @click="environment = 'prod'">PROD</button>
     </div>
-    <div
-      class="code tracking-widest  h-12 border w-full flex items-center justify-center text-sm border-black/20 rounded-md">
-      {{ ssoAuthorizationCode ?? 'SSO Authorization Code' }}
-    </div>
+    <input v-model="ssoAuthorizationCode" placeholder="SSO Authorization Code"
+      class=" input tracking-widest text-center" />
     <input v-model="clientIdentifier" type="text" placeholder="Client Identifier"
-      class="border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3" />
+      class="input" />
     <input v-model="clientSecret" type="text" placeholder="Client Secret"
-      class="border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3" />
+      class="input" />
     <button class="h-12 bg-sky-600" type="button" @click="startSSO" :disabled="!clientIdentifier || !clientSecret">
       Get SSO Authorization Code
     </button>
@@ -34,7 +32,7 @@
     </button>
 
     <input v-model="transactionId" type="text" placeholder="Transaction ID"
-      class="border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3" />
+      class="input" />
 
     <button class="h-12 bg-fib" type="button" @click="payment" :disabled="!transactionId || !ssoAuthorizationCode">
       Payment
@@ -78,7 +76,7 @@ const startSSO = async () => {
     ssoAuthorizationCode.value = code;
   } catch (error) {
     console.log(error);
-    
+
     alert(error)
   }
 };
@@ -147,5 +145,9 @@ button {
 
 .tab.inactive {
   @apply border-black/20 !text-neutral-950 bg-transparent
+}
+
+.input {
+  @apply border w-full border-black/20 text-sm focus:outline-0 focus:ring-0 focus:border-fib rounded-md h-12 px-3
 }
 </style>
