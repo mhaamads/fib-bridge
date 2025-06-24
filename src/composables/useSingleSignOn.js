@@ -1,7 +1,7 @@
 // composables/useSingleSignOn.ts
 
-const useSingleSignOn = (clientId, clientSecret, env) => {
-  const baseUrl = `https://cors-anywhere.herokuapp.com/https://fib-${env}.fib.iq`;
+const useSingleSignOn = (clientId, clientSecret, env, suffix = '') => {
+  const baseUrl = suffix + `https://fib-${env}.fib.iq`;
 
   const getBasicAuthHeader = () => {
     const token = btoa(`${clientId}:${clientSecret}`);

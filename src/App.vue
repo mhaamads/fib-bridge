@@ -1,5 +1,5 @@
 <template>
-  <div class="p-5 gap-3 max-w-sm m-auto flex flex-col items-center">
+  <div class="p-5 gap-3 max-w-sm m-auto flex flex-col items-center **:transition-all">
     <div @dblclick="setClientData" :class="isFIB ? 'bg-fib' : 'bg-red-500'"
       class=" fixed bottom-5 end-5 text-white  aspect-square h-10 grid place-content-center rounded-full">
       FIB
@@ -12,29 +12,33 @@
       <button class="tab" :class="environment === 'prod' ? 'active' : 'inactive'"
         @click="environment = 'prod'">PROD</button>
     </div>
+    <button @click="addCorsAnywhere = !addCorsAnywhere" :class="addCorsAnywhere ? 'bg-red-600 ' : ' bg-sky-600 '"
+      class="h-12 text-white  ">
+      {{ addCorsAnywhere ? 'Disable Proxy' : 'Enable Proxy' }}
+    </button>
     <input v-model="ssoAuthorizationCode" placeholder="SSO Authorization Code"
       class=" input tracking-widest text-center" />
-    <input v-model="clientIdentifier" type="text" placeholder="Client Identifier"
-      class="input" />
-    <input v-model="clientSecret" type="text" placeholder="Client Secret"
-      class="input" />
-    <button class="h-12 bg-sky-600" type="button" @click="startSSO" :disabled="!clientIdentifier || !clientSecret">
+    <input v-model="clientIdentifier" type="text" placeholder="Client Identifier" class="input" />
+    <input v-model="clientSecret" type="text" placeholder="Client Secret" class="input" />
+    <button class="h-12 text-white bg-sky-600" type="button" @click="startSSO"
+      :disabled="!clientIdentifier || !clientSecret">
       Get SSO Authorization Code
     </button>
-    <button class="h-12 bg-indigo-600" type="button" @click="fetchUser" :disabled="!ssoAuthorizationCode">
+    <button class="h-12 text-white bg-indigo-600" type="button" @click="fetchUser" :disabled="!ssoAuthorizationCode">
       Fetch User
     </button>
-    <button class="h-12 bg-lime-600" type="button" @click="registerBridge" :disabled="!isFIB">
+    <button class="h-12 text-white bg-lime-600" type="button" @click="registerBridge" :disabled="bridgeRegistered">
       Register Bridge
     </button>
-    <button class="h-12 bg-sky-600" type="button" @click="authenticateBridge" :disabled="!ssoAuthorizationCode">
+    <button class="h-12 text-white bg-sky-600" type="button" @click="authenticateBridge"
+      :disabled="!ssoAuthorizationCode">
       Authenticate Bridge
     </button>
 
-    <input v-model="transactionId" type="text" placeholder="Transaction ID"
-      class="input" />
+    <input v-model="transactionId" type="text" placeholder="Transaction ID" class="input" />
 
-    <button class="h-12 bg-fib" type="button" @click="payment" :disabled="!transactionId || !ssoAuthorizationCode">
+    <button class="h-12 text-white bg-fib" type="button" @click="payment"
+      :disabled="!transactionId || !ssoAuthorizationCode">
       Payment
     </button>
   </div>
@@ -50,6 +54,7 @@ const { registerBridge, sendMessage, on } = useFIBNativeBridge();
 const clientIdentifier = ref()
 const clientSecret = ref()
 const environment = ref('dev')
+const addCorsAnywhere = ref(false)
 
 const ssoAuthorizationCode = ref()
 const transactionId = ref()
@@ -59,11 +64,16 @@ const getUserDetails = ref()
 
 const isFIB = !!(window?.AndroidInterface || window.webkit?.messageHandlers?.FIBNativeBridge)
 
+const bridgeRegistered = window.FIBNativeBridge
+
 const useSSO = () => {
+  const suffix = addCorsAnywhere.value ? 'https://cors-anywhere.herokuapp.com/' : ''
   const { initiate, getUserDetails: getDetails } = useSingleSignOn(
     clientIdentifier.value,
     clientSecret.value,
-    environment.value // or 'prod', etc.
+    environment.value, // or 'prod', etc.
+    suffix
+
   );
   getUserDetails.value = getDetails
   return { initiate }
@@ -132,7 +142,7 @@ onMounted(() => {
 @reference "@/assets/css/style.css";
 
 button {
-  @apply w-full px-5 flex items-center justify-center rounded-md text-white cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-400 uppercase font-semibold text-sm
+  @apply w-full px-5 flex items-center justify-center rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-400 uppercase font-semibold text-sm
 }
 
 .tab {
@@ -144,7 +154,7 @@ button {
 }
 
 .tab.inactive {
-  @apply border-black/20 !text-neutral-950 bg-transparent
+  @apply border-black/20 text-neutral-950 bg-transparent
 }
 
 .input {
