@@ -4,6 +4,7 @@
       class=" fixed bottom-5 end-5 text-white  aspect-square h-10 grid place-content-center rounded-full">
       FIB
     </div>
+    <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" class="fixed bottom-5 start-5">Cors</a>
     <div class="flex gap-3 w-full">
       <button class="tab" :class="environment === 'dev' ? 'active' : 'inactive'"
         @click="environment = 'dev'">DEV</button>
@@ -53,7 +54,7 @@ const { registerBridge, sendMessage, on } = useFIBNativeBridge();
 
 const clientIdentifier = ref()
 const clientSecret = ref()
-const environment = ref('dev')
+const environment = ref('stage')
 const addCorsAnywhere = ref(false)
 
 const ssoAuthorizationCode = ref()
@@ -91,9 +92,9 @@ const startSSO = async () => {
   }
 };
 
-const fetchUser = async (code) => {
+const fetchUser = async () => {
   try {
-    const userData = await getUserDetails(code);
+    const userData = await getUserDetails.value(ssoAuthorizationCode.value);
     alert(userData)
   } catch (error) {
     alert(error)
@@ -101,8 +102,8 @@ const fetchUser = async (code) => {
 };
 
 const setClientData = () => {
-  clientIdentifier.value = "SangarSSOTest"
-  clientSecret.value = "9e3d6b9f-c87d-49f9-9c74-babe76b21c12"
+  clientIdentifier.value = "StageBookingAdvisorSso"
+  clientSecret.value = "4021fa5b-a703-4569-bdc1-c973c5ec67ab"
 }
 
 const authenticateBridge = () => {
@@ -134,6 +135,23 @@ onMounted(() => {
     const { transactionId, reason } = event.detail.body
     alert(`Payment Successfully Paid ${transactionId} , ${reason}`)
   })
+  window.addEventListener('error', (event) => {
+    const message = `
+    Message: ${event.message}
+    Source: ${event.filename}
+    Line: ${event.lineno}
+    Column: ${event.colno}
+    Error object: ${event.error ? event.error.stack : 'N/A'}
+  `;
+    alert(message);
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    alert(`Unhandled Promise Rejection: ${reason?.message || reason}`);
+    console.error('Promise rejection:', reason);
+  });
+
+
 });
 
 </script>
