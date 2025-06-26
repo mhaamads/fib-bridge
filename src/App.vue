@@ -1,5 +1,5 @@
 <template>
-  <div class="p-5 gap-3 max-w-sm m-auto flex flex-col items-center **:transition-all">
+  <div class="p-5 gap-3 max-w-lg m-auto flex flex-col items-center **:transition-all">
     <div @dblclick="setClientData" :class="isFIB ? 'bg-fib' : 'bg-red-500'"
       class=" fixed bottom-5 end-5 text-white  aspect-square h-10 grid place-content-center rounded-full">
       FIB
@@ -28,9 +28,6 @@
     <button class="h-12 text-white bg-indigo-600" type="button" @click="fetchUser" :disabled="!ssoAuthorizationCode">
       Fetch User
     </button>
-    <button class="h-12 text-white bg-lime-600" type="button" @click="registerBridge" :disabled="bridgeRegistered">
-      Register Bridge
-    </button>
     <button class="h-12 text-white bg-sky-600" type="button" @click="authenticateBridge"
       :disabled="!ssoAuthorizationCode">
       Authenticate Bridge
@@ -38,10 +35,14 @@
     <input v-model="transactionId" type="text" placeholder="Payment Id" class="input" />
     <input v-model="readableId" type="text" placeholder="readable Code" class="input" />
 
-    <button class="h-12 text-white bg-fib" type="button" @click="payment"
-      :disabled="!transactionId || !readableId || !ssoAuthorizationCode">
+    <button class="h-12 text-white bg-fib" type="button" @click="payment" :disabled="!transactionId || !readableId">
       Payment
     </button>
+
+    <!-- Logs UI -->
+    <div class="bg-gray-100 text-xs w-full max-h-40 overflow-auto p-2 rounded mt-5">
+      <div v-for="(msg, index) in logs" :key="index" class="whitespace-pre-line font-mono">{{ msg }}</div>
+    </div>
   </div>
 </template>
 
@@ -58,122 +59,117 @@ const addCorsAnywhere = ref(false)
 const ssoAuthorizationCode = ref()
 const transactionId = ref()
 const readableId = ref()
-
 const getUserDetails = ref()
 
+const logs = ref([])
+
+const log = (message) => {
+  console.log(message)
+  logs.value.unshift(`[${new Date().toLocaleTimeString()}] ${typeof message === 'string' ? message : JSON.stringify(message, null, 2)}`)
+}
 
 const isFIB = !!(window?.AndroidInterface || window.webkit?.messageHandlers?.FIBNativeBridge)
-
-const bridgeRegistered = window.FIBNativeBridge
 
 const useSSO = () => {
   const suffix = addCorsAnywhere.value ? 'https://cors-anywhere.herokuapp.com/' : ''
   const { initiate, getUserDetails: getDetails } = useSingleSignOn(
     clientIdentifier.value,
     clientSecret.value,
-    environment.value, // or 'prod', etc.
+    environment.value,
     suffix
-
-  );
+  )
   getUserDetails.value = getDetails
   return { initiate }
 }
 
-const registerBridge=()=>{}
+
 
 const startSSO = async () => {
   try {
+    console.log('Init SSO');
+    
     const { initiate } = useSSO()
-    const { ssoAuthorizationCode: code } = await initiate();
-    ssoAuthorizationCode.value = code;
+    const { ssoAuthorizationCode: code } = await initiate()
+    ssoAuthorizationCode.value = code
+    log(`SSO Code received: ${code}`)
   } catch (error) {
-    console.log(error);
-
-    alert(error)
+    log(`SSO Error: ${error?.message || error}`)
   }
-};
+}
 
 const fetchUser = async () => {
   try {
-    const userData = await getUserDetails.value(ssoAuthorizationCode.value);
-    alert(userData)
+    const userData = await getUserDetails.value(ssoAuthorizationCode.value)
+    log(`User Data: ${JSON.stringify(userData, null, 2)}`)
   } catch (error) {
-    alert(error)
+    log(`Fetch User Error: ${error?.message || error}`)
   }
-};
+}
 
 const setClientData = () => {
   clientIdentifier.value = "StageBookingAdvisorSso"
   clientSecret.value = "4021fa5b-a703-4569-bdc1-c973c5ec67ab"
+  log('Client data set for Stage')
 }
 
 const authenticateBridge = () => {
   try {
-    window.FIBNativeBridge.sendMessage({
+    const message = {
       type: "AUTHENTICATE",
       body: { readableId: readableId.value }
-    })
-  } catch (error) {
-    if (error instanceof UnsupportedPlatformError) {
-      alert("FIB Native App Bridge is not available, call the SDK only when its loaded inside FIB Native apps!", error)
     }
+    window.FIBNativeBridge.sendMessage(message)
+    log(`AUTHENTICATE sent: ${JSON.stringify(message)}`)
+  } catch (error) {
+    log(`Bridge not available: ${error?.message || error}`)
   }
-
 }
 
 const payment = () => {
   try {
-    window.FIBNativeBridge.sendMessage({
+    const message = {
       type: "PAYMENT",
       body: { transactionId: transactionId.value, readableId: readableId.value }
-    })
-  } catch (error) {
-    if (error instanceof UnsupportedPlatformError) {
-      alert("FIB Native App Bridge is not available, call the SDK only when its loaded inside FIB Native apps!", error)
     }
+    window.FIBNativeBridge.sendMessage(message)
+    log(`PAYMENT sent: ${JSON.stringify(message)}`)
+  } catch (error) {
+    log(`Bridge not available: ${error?.message || error}`)
   }
 }
 
 onMounted(() => {
-  
-  registerFIBNativeBridge();
-  console.log(window.FIBNativeBridge);
+  registerFIBNativeBridge()
+  setTimeout(() => {
+    if (!window.FIBNativeBridge) {
+      log("FIBNativeBridge not loaded.")
+      return
+    }
 
-  window.FIBNativeBridge.addEventListener("AUTHENTICATED", async (event) => {
-    alert(`user is Authenticated : ${event}`)
-  })
-  window.FIBNativeBridge.addEventListener("AUTHENTICATION_FAILED", async (event) => {
-    alert(`user Authenticated Failed ${event}`)
-  })
-  window.FIBNativeBridge.addEventListener("PAYMENT_SUCCESSFULLY_PAID", async (event) => {
-    const { transactionId } = event.detail.body
-    alert(`Payment Successfully Paid ${transactionId}`)
-  })
-  window.FIBNativeBridge.addEventListener("PAYMENT_FAILED", async (event) => {
-    const { transactionId, reason } = event.detail.body
-    alert(`Payment Successfully Paid ${transactionId} , ${reason}`)
-  })
-  window.addEventListener('error', (event) => {
-    const message = `
-    Message: ${event.message}
-    Source: ${event.filename}
-    Line: ${event.lineno}
-    Column: ${event.colno}
-    Error object: ${event.error ? event.error.stack : 'N/A'}
-  `;
-    alert(message);
-  });
-  window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason;
-    alert(`Unhandled Promise Rejection: ${reason?.message || reason}`);
-    console.error('Promise rejection:', reason);
-  });
+    window.FIBNativeBridge.addEventListener("AUTHENTICATED", (event) => {
+      log(`AUTHENTICATED: ${JSON.stringify(event.detail)}`)
+    })
+    window.FIBNativeBridge.addEventListener("AUTHENTICATION_FAILED", (event) => {
+      log(`AUTHENTICATION_FAILED: ${JSON.stringify(event.detail)}`)
+    })
+    window.FIBNativeBridge.addEventListener("PAYMENT_SUCCESSFULLY_PAID", (event) => {
+      log(`PAYMENT_SUCCESSFULLY_PAID: ${JSON.stringify(event.detail)}`)
+    })
+    window.FIBNativeBridge.addEventListener("PAYMENT_FAILED", (event) => {
+      log(`PAYMENT_FAILED: ${JSON.stringify(event.detail)}`)
+    })
 
+    window.addEventListener('error', (event) => {
+      log(`JS Error: ${event.message}\nSource: ${event.filename}\nLine: ${event.lineno}:${event.colno}`)
+    })
 
-});
-
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason
+      log(`Unhandled Promise Rejection: ${reason?.message || reason}`)
+    })
+  }, 500)
+})
 </script>
-
 <style>
 @reference "@/assets/css/style.css";
 
