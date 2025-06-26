@@ -48,9 +48,9 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import useSingleSignOn from '@/composables/useSingleSignOn';
-import { useFIBNativeBridge } from '@/composables/useFIBNativeBridge';
+import { UnsupportedPlatformError, useFIBNativeBridge } from '@/composables/useFIBNativeBridge';
 
-const { registerBridge, sendMessage, on } = useFIBNativeBridge();
+const { registerBridge } = useFIBNativeBridge();
 
 const clientIdentifier = ref()
 const clientSecret = ref()
@@ -108,17 +108,30 @@ const setClientData = () => {
 }
 
 const authenticateBridge = () => {
-  sendMessage({
-    type: 'AUTHENTICATE',
-    body: { readableId: ssoAuthorizationCode.value }
-  });
+  try {
+    window.FIBNativeBridge.sendMessage({
+      type: "AUTHENTICATE",
+      body: { readableId: readableId.value }
+    })
+  } catch (error) {
+    if (error instanceof UnsupportedPlatformError) {
+      alert("FIB Native App Bridge is not available, call the SDK only when its loaded inside FIB Native apps!", error)
+    }
+  }
+
 }
 
 const payment = () => {
-  window.FIBNativeBridge.sendMessage({
-    type: "PAYMENT",
-    body: { transactionId: transactionId.value, readableId: readableId.value }
-  })
+  try {
+    window.FIBNativeBridge.sendMessage({
+      type: "PAYMENT",
+      body: { transactionId: transactionId.value, readableId: readableId.value }
+    })
+  } catch (error) {
+    if (error instanceof UnsupportedPlatformError) {
+      alert("FIB Native App Bridge is not available, call the SDK only when its loaded inside FIB Native apps!", error)
+    }
+  }
 }
 
 onMounted(() => {

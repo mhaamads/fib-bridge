@@ -1,6 +1,3 @@
-// composables/useFIBNativeBridge.js
-import { onUnmounted } from 'vue';
-
 class InvalidMessageError extends Error {
   constructor(message) {
     super(message);
@@ -8,7 +5,7 @@ class InvalidMessageError extends Error {
   }
 }
 
-class UnsupportedPlatformError extends Error {
+export class UnsupportedPlatformError extends Error {
   constructor(message) {
     super(message);
     this.name = 'UnsupportedPlatformError';
