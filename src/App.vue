@@ -35,11 +35,11 @@
       :disabled="!ssoAuthorizationCode">
       Authenticate Bridge
     </button>
-
-    <input v-model="transactionId" type="text" placeholder="Transaction ID" class="input" />
+    <input v-model="transactionId" type="text" placeholder="Payment Id" class="input" />
+    <input v-model="readableId" type="text" placeholder="readable Code" class="input" />
 
     <button class="h-12 text-white bg-fib" type="button" @click="payment"
-      :disabled="!transactionId || !ssoAuthorizationCode">
+      :disabled="!transactionId || !readableId || !ssoAuthorizationCode">
       Payment
     </button>
   </div>
@@ -59,6 +59,7 @@ const addCorsAnywhere = ref(false)
 
 const ssoAuthorizationCode = ref()
 const transactionId = ref()
+const readableId = ref()
 
 const getUserDetails = ref()
 
@@ -116,7 +117,7 @@ const authenticateBridge = () => {
 const payment = () => {
   window.FIBNativeBridge.sendMessage({
     type: "PAYMENT",
-    body: { transactionId: transactionId.value, readableId: ssoAuthorizationCode.value }
+    body: { transactionId: transactionId.value, readableId: readableId.value }
   })
 }
 
