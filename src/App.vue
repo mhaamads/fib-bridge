@@ -49,7 +49,9 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import useSingleSignOn from '@/composables/useSingleSignOn';
-import { registerFIBNativeBridge } from "@first-iraqi-bank/sdk/fib-native-bridge"
+import { useFIBNativeBridge } from './composables/useFIBNativeBridge';
+
+useFIBNativeBridge()
 
 const clientIdentifier = ref()
 const clientSecret = ref()
@@ -87,7 +89,7 @@ const useSSO = () => {
 const startSSO = async () => {
   try {
     console.log('Init SSO');
-    
+
     const { initiate } = useSSO()
     const { ssoAuthorizationCode: code } = await initiate()
     ssoAuthorizationCode.value = code
@@ -118,8 +120,9 @@ const authenticateBridge = () => {
       type: "AUTHENTICATE",
       body: { readableId: readableId.value }
     }
-    window.FIBNativeBridge.sendMessage(message)
     log(`AUTHENTICATE sent: ${JSON.stringify(message)}`)
+    window.FIBNativeBridge.sendMessage(message)
+    log(`AUTHENTICATE sent`)
   } catch (error) {
     log(`Bridge not available: ${error?.message || error}`)
   }
