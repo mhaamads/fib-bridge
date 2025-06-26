@@ -28,21 +28,23 @@
     <button class="h-12 text-white bg-indigo-600" type="button" @click="fetchUser" :disabled="!ssoAuthorizationCode">
       Fetch User
     </button>
-    <button class="h-12 text-white bg-sky-600" type="button" @click="authenticateBridge"
-      :disabled="!ssoAuthorizationCode">
-      Authenticate Bridge
-    </button>
     <input v-model="transactionId" type="text" placeholder="Payment Id" class="input" />
     <input v-model="readableId" type="text" placeholder="readable Code" class="input" />
 
+    <button class="h-12 text-white bg-sky-600" type="button" @click="authenticateBridge" :disabled="!readableId">
+      Authenticate
+    </button>
     <button class="h-12 text-white bg-fib" type="button" @click="payment" :disabled="!transactionId || !readableId">
       Payment
     </button>
 
     <!-- Logs UI -->
-    <div class="bg-gray-100 text-xs w-full max-h-40 overflow-auto p-2 rounded mt-5">
+    <div class="bg-gray-100 text-xs w-full max-h-96 overflow-auto p-2 rounded mt-5">
       <div v-for="(msg, index) in logs" :key="index" class="whitespace-pre-line font-mono">{{ msg }}</div>
     </div>
+    <button class="h-12 text-white bg-neutral-900" type="button" @click="logs = []">
+      Clear Logs
+    </button>
   </div>
 </template>
 
@@ -87,7 +89,7 @@ const useSSO = () => {
 const startSSO = async () => {
   try {
     console.log('Init SSO');
-    
+
     const { initiate } = useSSO()
     const { ssoAuthorizationCode: code } = await initiate()
     ssoAuthorizationCode.value = code
