@@ -48,9 +48,7 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import useSingleSignOn from '@/composables/useSingleSignOn';
-import { UnsupportedPlatformError, useFIBNativeBridge } from '@/composables/useFIBNativeBridge';
-
-const { registerBridge } = useFIBNativeBridge();
+import { registerFIBNativeBridge } from "@first-iraqi-bank/sdk/fib-native-bridge"
 
 const clientIdentifier = ref()
 const clientSecret = ref()
@@ -80,6 +78,8 @@ const useSSO = () => {
   getUserDetails.value = getDetails
   return { initiate }
 }
+
+const registerBridge=()=>{}
 
 const startSSO = async () => {
   try {
@@ -135,6 +135,10 @@ const payment = () => {
 }
 
 onMounted(() => {
+  
+  registerFIBNativeBridge();
+  console.log(window.FIBNativeBridge);
+
   window.FIBNativeBridge.addEventListener("AUTHENTICATED", async (event) => {
     alert(`user is Authenticated : ${event}`)
   })
