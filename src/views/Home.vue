@@ -5,7 +5,8 @@
       FIB
     </div>
     <!-- <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" class="fixed bottom-5 start-5">Cors</a> -->
-    <a :href="serverURL" target="_blank" class="fixed bottom-5 start-5">API</a>
+    <a href="https://moonlinetravel.github.io/booking-advisors-website"  class="fixed bottom-5 start-5">Booking Advisors</a>
+    <!-- <a :href="serverURL" target="_blank" class="fixed bottom-5 start-5">API</a> -->
     <div class="flex gap-3 w-full">
       <button class="tab" :class="environment === 'dev' ? 'active' : 'inactive'"
         @click="environment = 'dev'">DEV</button>
@@ -60,7 +61,7 @@ const environment = ref('stage')
 const addCorsAnywhere = ref(false)
 
 const ssoAuthorizationCode = ref()
-const serverURL = ref('https://192.168.14.130:3001')
+const serverURL = ref('https://app.bookingadvisors.com')
 const transactionId = ref()
 const readableId = ref()
 
