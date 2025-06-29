@@ -81,7 +81,7 @@ const startSSO = async () => {
   try {
     const response = await fetch(`${serverURL.value}/fib/sso/initiate`);
     const { ssoAuthorizationCode: code } = await response.json();
-    ssoAuthorizationCode.value = code;
+    ssoAuthorizationCode.value = code.replaceAll('-', '');
     log(`SSO Code received: ${code}`)
   } catch (error) {
     log(`SSO Error: ${error?.message || error}`)
