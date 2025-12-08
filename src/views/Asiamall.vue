@@ -43,7 +43,6 @@ function getKeySpecFromSecret(secret: string) {
 }
 
 const SECRET = import.meta.env.VITE_SECRET; // your actual partner secret key
-console.log(SECRET);
 
 function encryptToken() {
   const keySpec = getKeySpecFromSecret(SECRET);
