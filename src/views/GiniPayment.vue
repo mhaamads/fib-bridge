@@ -82,6 +82,10 @@
       </fieldset>
     </form>
 
+    <div v-if="paymentState" class="payment-indicator" :class="paymentStateClass(paymentState)">
+      {{ paymentStateLabel(paymentState) }}
+    </div>
+
     <section v-if="transactionUuid" class="panel">
       <label>
         Transaction UUID
@@ -118,6 +122,7 @@ const isReady = ref(null)
 const userInfo = ref(null)
 const transactionUuid = ref('')
 const paymentStatus = ref(null)
+const paymentState = ref('')
 const failed = ref(false)
 const status = ref('')
 const result = ref('')
@@ -150,6 +155,46 @@ function badgeText(value) {
 
 function badgeClass(value) {
   return value === null ? 'badge-pending' : value ? 'badge-ok' : 'badge-error'
+}
+
+function paymentStateLabel(value) {
+  return {
+    submitted: 'Payment dialog completed — awaiting server confirmation',
+    pending: 'Payment is still processing',
+    success: 'Payment succeeded',
+    failed: 'Payment failed',
+    cancelled: 'Payment was cancelled',
+  }[value] || 'Payment status unknown'
+}
+
+function paymentStateClass(value) {
+  return {
+    submitted: 'payment-pending',
+    pending: 'payment-pending',
+    success: 'payment-success',
+    failed: 'payment-failed',
+    cancelled: 'payment-cancelled',
+  }[value] || 'payment-pending'
+}
+
+function paymentStateFromStatus(value) {
+  const status = String(value || '').toLowerCase()
+  if (status.includes('success') || status.includes('complete')) return 'success'
+  if (status.includes('fail')) return 'failed'
+  if (status.includes('cancel')) return 'cancelled'
+  return 'pending'
+}
+
+function hasNativeMiniAppBridge() {
+  if (typeof window.my?.getAuthCode !== 'function' || typeof window.my?.tradePay !== 'function') return false
+  if (/miniprogram|griver/i.test(navigator.userAgent)) return true
+
+  try {
+    const app = String(window.my.getSystemInfoSync?.().app || '').toLowerCase()
+    return Boolean(app) && !app.includes('web')
+  } catch {
+    return false
+  }
 }
 
 function safeUserInfo(user) {
@@ -212,10 +257,11 @@ async function checkGini() {
       storage: memoryStorage(),
       disableRemoteEventReporting: true,
     })
-    isMiniApp.value = probe.isMiniApp()
     await probe.ready()
+    isMiniApp.value = hasNativeMiniAppBridge()
     isReady.value = true
   } catch {
+    isMiniApp.value = false
     isReady.value = false
   }
 }
@@ -267,6 +313,7 @@ function resetLogin() {
   userInfo.value = null
   transactionUuid.value = ''
   paymentStatus.value = null
+  paymentState.value = ''
   status.value = ''
   result.value = ''
   failed.value = false
@@ -278,6 +325,7 @@ async function pay() {
   result.value = ''
   paymentStatus.value = null
   transactionUuid.value = ''
+  paymentState.value = ''
 
   let metadata
   try {
@@ -311,14 +359,16 @@ async function pay() {
     if (metadata !== undefined) payload.metadata = metadata
 
     status.value = 'Opening payment dialog…'
-    const payment = await giniClient.pay(payload)
+    const payment = await giniClient.pay(payload, { poll: false })
     transactionUuid.value = payment?.uuid || transactionUuid.value
-    status.value = `Payment flow finished (${payment?.status || 'success'})`
+    paymentState.value = 'submitted'
+    status.value = 'Payment dialog completed; transaction submitted'
     result.value = JSON.stringify(payment, null, 2)
   } catch (error) {
     transactionUuid.value = error?.uuid || transactionUuid.value
+    paymentState.value = error?.name === 'SuperQiPaymentError' ? 'cancelled' : 'failed'
     failed.value = true
-    status.value = 'Payment failed'
+    status.value = paymentState.value === 'cancelled' ? 'Payment cancelled' : 'Payment failed'
     result.value = errorMessage(error)
   } finally {
     busy.value = false
@@ -345,7 +395,8 @@ async function checkPaymentStatus() {
       'GET',
       `/v1/payments/${encodeURIComponent(transactionUuid.value)}/status`,
     )
-    status.value = 'Payment status loaded'
+    paymentState.value = paymentStateFromStatus(paymentStatus.value?.status)
+    status.value = paymentStateLabel(paymentState.value)
   } catch (error) {
     failed.value = true
     status.value = 'Could not load payment status'
@@ -408,6 +459,23 @@ label {
 
 .result {
   @apply rounded-md p-3 text-sm;
+}
+
+.payment-indicator {
+  @apply rounded-md p-3 text-sm font-semibold;
+}
+
+.payment-pending {
+  @apply bg-amber-50 text-amber-900;
+}
+
+.payment-success {
+  @apply bg-emerald-50 text-emerald-900;
+}
+
+.payment-failed,
+.payment-cancelled {
+  @apply bg-red-50 text-red-900;
 }
 
 .panel {
