@@ -5,6 +5,7 @@
       FIB
     </div>
     <!-- <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" class="fixed bottom-5 start-5">Cors</a> -->
+    <RouterLink to="/gini-payment" class="fixed top-5 start-5 text-sm text-fib">Gini Payment Test</RouterLink>
     <a href="https://moonlinetravel.github.io/booking-advisors-website"  class="fixed bottom-5 start-5">Booking Advisors</a>
     <!-- <a :href="serverURL" target="_blank" class="fixed bottom-5 start-5">API</a> -->
     <div class="flex gap-3 w-full">
