@@ -39,6 +39,14 @@
       </div>
     </form>
 
+    <section v-if="loggedIn" class="panel">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="font-semibold">Logged-in customer</h2>
+        <button class="text-sm text-fib" type="button" :disabled="busy" @click="loadUserInfo">Refresh profile</button>
+      </div>
+      <pre v-if="userInfo" class="mt-2 whitespace-pre-wrap break-words">{{ formatJson(userInfo) }}</pre>
+    </section>
+
     <form class="flex flex-col gap-3" @submit.prevent="pay">
       <fieldset :disabled="!loggedIn || busy" class="flex flex-col gap-3">
         <legend class="text-sm font-semibold">Payment details</legend>
@@ -69,6 +77,17 @@
       </fieldset>
     </form>
 
+    <section v-if="transactionUuid" class="panel">
+      <label>
+        Transaction UUID
+        <input v-model.trim="transactionUuid" class="input" />
+      </label>
+      <button class="button secondary-button mt-3" type="button" :disabled="busy" @click="checkPaymentStatus">
+        {{ busy && action === 'status' ? 'Checking…' : 'Check payment status' }}
+      </button>
+      <pre v-if="paymentStatus" class="mt-2 whitespace-pre-wrap break-words">{{ formatJson(paymentStatus) }}</pre>
+    </section>
+
     <div v-if="status" class="result" :class="failed ? 'result-error' : 'result-success'">
       <p class="font-semibold">{{ status }}</p>
       <pre v-if="result" class="mt-2 whitespace-pre-wrap break-words">{{ result }}</pre>
@@ -89,6 +108,9 @@ const metadataText = ref('')
 const busy = ref(false)
 const action = ref('')
 const loggedIn = ref(false)
+const userInfo = ref(null)
+const transactionUuid = ref('')
+const paymentStatus = ref(null)
 const failed = ref(false)
 const status = ref('')
 const result = ref('')
@@ -109,6 +131,18 @@ function memoryStorage() {
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function formatJson(value) {
+  return JSON.stringify(value, null, 2)
+}
+
+function safeUserInfo(user) {
+  if (!user || typeof user !== 'object') return user
+  const safe = { ...user }
+  delete safe.token
+  delete safe.refresh_token
+  return safe
 }
 
 async function sign(canonical) {
@@ -150,10 +184,23 @@ function createClient() {
   })
 }
 
+async function loadUserInfo() {
+  if (!giniClient) return
+  try {
+    userInfo.value = await giniClient.request('GET', '/v1/customer/me')
+  } catch (error) {
+    userInfo.value = {
+      ...safeUserInfo(userInfo.value),
+      profileError: errorMessage(error),
+    }
+  }
+}
+
 async function login() {
   failed.value = false
   status.value = ''
   result.value = ''
+  userInfo.value = null
   busy.value = true
   action.value = 'login'
 
@@ -161,6 +208,8 @@ async function login() {
     giniClient = createClient()
     const user = await giniClient.login()
     loggedIn.value = true
+    userInfo.value = safeUserInfo(user)
+    await loadUserInfo()
     status.value = user?.name ? `Logged in as ${user.name}` : 'Logged in successfully'
   } catch (error) {
     giniClient = undefined
@@ -179,6 +228,9 @@ function resetLogin() {
   storage = undefined
   giniClient = undefined
   loggedIn.value = false
+  userInfo.value = null
+  transactionUuid.value = ''
+  paymentStatus.value = null
   status.value = ''
   result.value = ''
   failed.value = false
@@ -188,6 +240,8 @@ async function pay() {
   failed.value = false
   status.value = ''
   result.value = ''
+  paymentStatus.value = null
+  transactionUuid.value = ''
 
   let metadata
   try {
@@ -222,11 +276,43 @@ async function pay() {
 
     status.value = 'Opening payment dialog…'
     const payment = await giniClient.pay(payload)
+    transactionUuid.value = payment?.uuid || transactionUuid.value
     status.value = `Payment flow finished (${payment?.status || 'success'})`
     result.value = JSON.stringify(payment, null, 2)
   } catch (error) {
+    transactionUuid.value = error?.uuid || transactionUuid.value
     failed.value = true
     status.value = 'Payment failed'
+    result.value = errorMessage(error)
+  } finally {
+    busy.value = false
+    action.value = ''
+  }
+}
+
+async function checkPaymentStatus() {
+  if (!giniClient) return
+  if (!transactionUuid.value) {
+    failed.value = true
+    status.value = 'Missing transaction UUID'
+    result.value = 'Run a payment first or enter a transaction UUID.'
+    return
+  }
+
+  failed.value = false
+  status.value = ''
+  result.value = ''
+  busy.value = true
+  action.value = 'status'
+  try {
+    paymentStatus.value = await giniClient.request(
+      'GET',
+      `/v1/payments/${encodeURIComponent(transactionUuid.value)}/status`,
+    )
+    status.value = 'Payment status loaded'
+  } catch (error) {
+    failed.value = true
+    status.value = 'Could not load payment status'
     result.value = errorMessage(error)
   } finally {
     busy.value = false
@@ -254,6 +340,10 @@ label {
   @apply border border-black/20 px-4;
 }
 
+.secondary-button {
+  @apply border border-black/20;
+}
+
 .muted {
   @apply font-normal text-gray-500;
 }
@@ -264,6 +354,10 @@ label {
 
 .result {
   @apply rounded-md p-3 text-sm;
+}
+
+.panel {
+  @apply rounded-md border border-black/10 bg-gray-50 p-3 text-sm;
 }
 
 .result-success {

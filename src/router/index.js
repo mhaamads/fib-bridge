@@ -7,7 +7,7 @@ const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/',
+      path: '/fib',
       component: Home
     },
     {
@@ -15,7 +15,7 @@ const router = createRouter({
       component: Asiamall
     },
     {
-      path: '/gini-payment',
+      path: '/',
       component: GiniPayment
     }
   ],
