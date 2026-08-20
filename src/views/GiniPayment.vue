@@ -15,6 +15,11 @@
       the source code or local storage.
     </div>
 
+    <div class="flex flex-wrap gap-2" aria-live="polite">
+      <span class="badge" :class="badgeClass(isMiniApp)">isMiniApp: {{ badgeText(isMiniApp) }}</span>
+      <span class="badge" :class="badgeClass(isReady)">ready: {{ badgeText(isReady) }}</span>
+    </div>
+
     <form class="flex flex-col gap-3" @submit.prevent="login">
       <label>
         Gini API URL
@@ -96,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 
 const baseUrl = ref('https://bridge.gini.iq/api')
 const apiKey = ref('')
@@ -108,6 +113,8 @@ const metadataText = ref('')
 const busy = ref(false)
 const action = ref('')
 const loggedIn = ref(false)
+const isMiniApp = ref(null)
+const isReady = ref(null)
 const userInfo = ref(null)
 const transactionUuid = ref('')
 const paymentStatus = ref(null)
@@ -135,6 +142,14 @@ function errorMessage(error) {
 
 function formatJson(value) {
   return JSON.stringify(value, null, 2)
+}
+
+function badgeText(value) {
+  return value === null ? 'checking…' : value ? 'yes' : 'no'
+}
+
+function badgeClass(value) {
+  return value === null ? 'badge-pending' : value ? 'badge-ok' : 'badge-error'
 }
 
 function safeUserInfo(user) {
@@ -182,6 +197,27 @@ function createClient() {
     fetch: signedFetch(),
     disableRemoteEventReporting: true,
   })
+}
+
+async function checkGini() {
+  if (!window.Gini?.create) {
+    isMiniApp.value = false
+    isReady.value = false
+    return
+  }
+
+  try {
+    const probe = window.Gini.create({
+      baseUrl: baseUrl.value,
+      storage: memoryStorage(),
+      disableRemoteEventReporting: true,
+    })
+    isMiniApp.value = probe.isMiniApp()
+    await probe.ready()
+    isReady.value = true
+  } catch {
+    isReady.value = false
+  }
 }
 
 async function loadUserInfo() {
@@ -319,6 +355,8 @@ async function checkPaymentStatus() {
     action.value = ''
   }
 }
+
+onMounted(checkGini)
 </script>
 
 <style scoped>
@@ -350,6 +388,22 @@ label {
 
 .notice {
   @apply rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900;
+}
+
+.badge {
+  @apply rounded-full px-3 py-1 text-xs font-semibold;
+}
+
+.badge-pending {
+  @apply bg-gray-100 text-gray-600;
+}
+
+.badge-ok {
+  @apply bg-emerald-100 text-emerald-800;
+}
+
+.badge-error {
+  @apply bg-red-100 text-red-800;
 }
 
 .result {
