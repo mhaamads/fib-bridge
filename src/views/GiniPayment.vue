@@ -1,6 +1,6 @@
 <template>
   <main class="p-5 max-w-lg m-auto flex flex-col gap-4">
-    <RouterLink to="/" class="text-sm text-fib">← FIB Bridge</RouterLink>
+    <!-- <RouterLink to="/" class="text-sm text-fib">← FIB Bridge</RouterLink> -->
 
     <div>
       <p class="text-xs uppercase tracking-widest text-gray-500">Developer tool</p>
@@ -11,8 +11,7 @@
     </div>
 
     <div class="notice">
-      Test-only direct Bridge mode. Credentials are entered at runtime and kept in memory only; nothing is stored in
-      the source code or local storage.
+      Gini authentication is handled by Booking Advisors. Gini API credentials never enter the frontend.
     </div>
 
     <div class="flex flex-wrap gap-2" aria-live="polite">
@@ -21,21 +20,6 @@
     </div>
 
     <form class="flex flex-col gap-3" @submit.prevent="login">
-      <label>
-        Gini API URL
-        <input v-model.trim="baseUrl" type="url" required class="input" :disabled="loggedIn" placeholder="https://bridge.gini.iq/api" />
-      </label>
-
-      <label>
-        API key
-        <input v-model.trim="apiKey" required class="input" :disabled="loggedIn" autocomplete="off" placeholder="app_key_..." />
-      </label>
-
-      <label>
-        App secret
-        <input v-model.trim="appSecret" type="password" required class="input" :disabled="loggedIn" autocomplete="off" placeholder="Your app secret" />
-      </label>
-
       <div class="flex gap-3">
         <button class="button flex-1 bg-fib text-white" type="submit" :disabled="busy || loggedIn">
           {{ busy && action === 'login' ? 'Logging in…' : loggedIn ? 'Logged in' : 'Login with Gini' }}
@@ -107,9 +91,11 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 
-const baseUrl = ref('https://bridge.gini.iq/api')
-const apiKey = ref('')
-const appSecret = ref('')
+const BACKEND_URL = 'https://app.bookingadvisors.com'
+const INSTALLATION_ID_KEY = 'booking-advisors.gini.installation-id'
+const GINI_CREDENTIALS_KEY = 'booking-advisors.gini.credentials'
+const SDK_BEARER_KEY = 'gini.bearer'
+const SDK_CLIENT_ID_KEY = 'gini.clientId'
 const amount = ref(null)
 const commissionId = ref(null)
 const merchantReference = ref('')
@@ -127,7 +113,10 @@ const failed = ref(false)
 const status = ref('')
 const result = ref('')
 let giniClient
-let storage
+let sdkStorage
+let secureStorage
+let installationId
+let authenticatedUser
 
 function memoryStorage() {
   const values = new Map()
@@ -205,43 +194,139 @@ function safeUserInfo(user) {
   return safe
 }
 
-async function sign(canonical) {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(appSecret.value),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(canonical))
-  return [...new Uint8Array(signature)].map(byte => byte.toString(16).padStart(2, '0')).join('')
-}
+function createSecureStorage(client) {
+  if (typeof client?.platform?.getStorage !== 'function' || typeof client.platform.setStorage !== 'function') {
+    throw new Error('Secure storage is unavailable.')
+  }
 
-function signedFetch() {
-  const nativeFetch = window.fetch.bind(window)
-  return async (input, init = {}) => {
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonce = crypto.randomUUID().replaceAll('-', '')
-    const body = init.body || ''
-    const signature = await sign([apiKey.value, timestamp, nonce, body].join('\n'))
-    const headers = new Headers(init.headers)
-    headers.set('X-Api-Key', apiKey.value)
-    headers.set('X-Timestamp', timestamp)
-    headers.set('X-Nonce', nonce)
-    headers.set('X-Signature', signature)
-    return nativeFetch(input, { ...init, headers })
+  return {
+    getItem: key => client.platform.getStorage(key),
+    setItem: (key, value) => client.platform.setStorage(key, String(value)),
+    removeItem: key => client.platform.setStorage(key, ''),
   }
 }
 
-function createClient() {
+async function getInstallationId() {
+  const saved = await secureStorage.getItem(INSTALLATION_ID_KEY)
+  if (typeof saved === 'string' && saved) return saved
+
+  const generated = crypto.randomUUID()
+  await secureStorage.setItem(INSTALLATION_ID_KEY, generated)
+  return generated
+}
+
+function getStoredCredentials(raw) {
+  try {
+    const credentials = JSON.parse(raw)
+    if (!credentials || typeof credentials.token !== 'string' || !credentials.token) return null
+    if (typeof credentials.expires_at !== 'string' || !Number.isFinite(Date.parse(credentials.expires_at))) return null
+    if (credentials.refresh_token !== null && typeof credentials.refresh_token !== 'string') return null
+    return credentials
+  } catch {
+    return null
+  }
+}
+
+function cacheSdkBearer(credentials) {
+  const expiresAt = Date.parse(credentials.expires_at)
+  sdkStorage.set(SDK_BEARER_KEY, JSON.stringify({
+    token: credentials.token,
+    expiresAt,
+    refreshToken: credentials.refresh_token,
+    applicationKey: BACKEND_URL,
+  }))
+}
+
+async function storeCredentials(data) {
+  const credentials = getStoredCredentials(JSON.stringify({
+    token: data?.token,
+    expires_at: data?.expires_at,
+    refresh_token: data?.refresh_token ?? null,
+  }))
+  if (!credentials) throw new Error('Booking Advisors returned invalid Gini credentials.')
+
+  await secureStorage.setItem(GINI_CREDENTIALS_KEY, JSON.stringify(credentials))
+  cacheSdkBearer(credentials)
+}
+
+async function restoreCredentials() {
+  const raw = await secureStorage.getItem(GINI_CREDENTIALS_KEY)
+  const credentials = typeof raw === 'string' ? getStoredCredentials(raw) : null
+  if (!credentials) {
+    if (raw) await secureStorage.removeItem(GINI_CREDENTIALS_KEY)
+    return
+  }
+
+  cacheSdkBearer(credentials)
+}
+
+async function clearCredentials() {
+  sdkStorage?.removeItem(SDK_BEARER_KEY)
+  await secureStorage?.removeItem(GINI_CREDENTIALS_KEY)
+}
+
+function clearSdkSession() {
+  sdkStorage?.clear()
+  if (installationId) sdkStorage?.set(SDK_CLIENT_ID_KEY, installationId)
+}
+
+function backendFetch() {
+  const nativeFetch = window.fetch.bind(window)
+  return async (input, init = {}) => {
+    const requestUrl = input instanceof Request ? input.url : input
+    const url = new URL(requestUrl, BACKEND_URL)
+
+    if (url.pathname === '/v1/customer/login') {
+      let requestBody
+      try {
+        requestBody = JSON.parse(typeof init.body === 'string' ? init.body : '{}')
+      } catch {
+        throw new Error('Gini SDK returned an invalid login request.')
+      }
+
+      const authCode = requestBody?.token
+      if (typeof authCode !== 'string' || !authCode) throw new Error('Gini SDK returned no auth code.')
+      if (!installationId) throw new Error('Installation ID is unavailable.')
+
+      const response = await nativeFetch(`${BACKEND_URL}/gini/sso/authenticate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': installationId,
+        },
+        body: JSON.stringify({ authCode }),
+      })
+
+      if (response.ok) {
+        const payload = await response.clone().json()
+        authenticatedUser = payload?.data?.user
+        await storeCredentials(payload?.data)
+      }
+
+      return response
+    }
+
+    return nativeFetch(input, init)
+  }
+}
+
+async function createClient() {
   if (!window.Gini?.create) throw new Error('Gini SDK is not loaded.')
-  storage = memoryStorage()
-  return window.Gini.create({
-    baseUrl: baseUrl.value,
-    storage,
-    fetch: signedFetch(),
+
+  sdkStorage = memoryStorage()
+  giniClient = window.Gini.create({
+    baseUrl: BACKEND_URL,
+    storage: sdkStorage,
+    fetch: backendFetch(),
     disableRemoteEventReporting: true,
   })
+
+  await giniClient.ready()
+  secureStorage = createSecureStorage(giniClient)
+  installationId = await getInstallationId()
+  sdkStorage.set(SDK_CLIENT_ID_KEY, installationId)
+  await restoreCredentials()
+  return giniClient
 }
 
 async function checkGini() {
@@ -253,7 +338,7 @@ async function checkGini() {
 
   try {
     const probe = window.Gini.create({
-      baseUrl: baseUrl.value,
+      baseUrl: BACKEND_URL,
       storage: memoryStorage(),
       disableRemoteEventReporting: true,
     })
@@ -269,12 +354,25 @@ async function checkGini() {
 async function loadUserInfo() {
   if (!giniClient) return
   try {
-    userInfo.value = await giniClient.request('GET', '/v1/customer/me')
+    userInfo.value = safeUserInfo(await giniClient.request('GET', '/v1/customer/me'))
   } catch (error) {
     userInfo.value = {
       ...safeUserInfo(userInfo.value),
       profileError: errorMessage(error),
     }
+  }
+}
+
+async function loginWithRetry() {
+  try {
+    return await giniClient.login()
+  } catch (error) {
+    if (error?.status !== 400) throw error
+
+    clearSdkSession()
+    await clearCredentials()
+    authenticatedUser = undefined
+    return giniClient.login()
   }
 }
 
@@ -287,15 +385,16 @@ async function login() {
   action.value = 'login'
 
   try {
-    giniClient = createClient()
-    const user = await giniClient.login()
+    if (!giniClient) await createClient()
+    const user = await loginWithRetry()
     loggedIn.value = true
-    userInfo.value = safeUserInfo(user)
-    await loadUserInfo()
+    userInfo.value = safeUserInfo(authenticatedUser || user)
     status.value = user?.name ? `Logged in as ${user.name}` : 'Logged in successfully'
   } catch (error) {
     giniClient = undefined
-    storage = undefined
+    sdkStorage = undefined
+    secureStorage = undefined
+    installationId = undefined
     failed.value = true
     status.value = 'Login failed'
     result.value = errorMessage(error)
@@ -305,10 +404,14 @@ async function login() {
   }
 }
 
-function resetLogin() {
-  storage?.clear()
-  storage = undefined
+async function resetLogin() {
+  clearSdkSession()
+  await clearCredentials()
   giniClient = undefined
+  sdkStorage = undefined
+  secureStorage = undefined
+  installationId = undefined
+  authenticatedUser = undefined
   loggedIn.value = false
   userInfo.value = null
   transactionUuid.value = ''
