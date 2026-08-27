@@ -170,7 +170,7 @@ onMounted(() => {
 @reference "@/assets/css/style.css";
 
 button {
-  @apply w-full px-5 flex items-center justify-center rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-400 uppercase font-semibold text-sm
+  @apply  px-5 flex items-center justify-center rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-400 uppercase font-semibold text-sm
 }
 
 .tab {
