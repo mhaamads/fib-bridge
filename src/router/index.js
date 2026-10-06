@@ -1,5 +1,5 @@
 import Asiamall from '@/views/Asiamall.vue'
-import GiniPayment from '@/views/GiniPayment.vue'
+import SuperQiPayment from '@/views/SuperQiPayment.vue'
 import Home from '@/views/Home.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
@@ -16,7 +16,7 @@ const router = createRouter({
     },
     {
       path: '/',
-      component: GiniPayment
+      component: SuperQiPayment
     }
   ],
 })
