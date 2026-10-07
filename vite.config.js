@@ -44,7 +44,12 @@ export default defineConfig({
     superQiGatewayProxy,
   ],
   server: {
-    port: 3000
+    port: 3000,
+    // Dev only: bypass CORS by calling these prefixes instead of the real hosts
+    proxy: {
+      '/proxy/booking-advisors': { target: 'https://app.bookingadvisors.com', changeOrigin: true, rewrite: p => p.replace(/^\/proxy\/booking-advisors/, '') },
+      '/proxy/asiamall': { target: 'https://asiamall.asiacell.com', changeOrigin: true, rewrite: p => p.replace(/^\/proxy\/asiamall/, '') },
+    },
   },
   resolve: {
     alias: {

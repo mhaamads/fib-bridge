@@ -119,7 +119,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 
-const BACKEND_URL = 'https://app.bookingadvisors.com'
+const BACKEND_URL = import.meta.env.DEV ? '/proxy/booking-advisors' : 'https://app.bookingadvisors.com'
+// The gateway sends no CORS headers: dev uses the Vite proxy, deployed builds use the Cloudflare Worker in worker/
+const GATEWAY_PROXY = import.meta.env.DEV ? '/superqi-gateway' : import.meta.env.VITE_SUPERQI_PROXY
 const ONLINE_PURCHASE = '51051000101000000011'
 // my.getAuthCode scopes: auth_base = user id, auth_user = name/avatar/gender/birthday/nationality/contacts
 const SCOPES = ['auth_base', 'auth_user']
@@ -151,7 +153,7 @@ const result = ref('')
 const authCode = ref('')
 const manualCode = ref('')
 // never persisted: secrets live only in this page's memory
-const gateway = reactive({ url: '', clientId: '', privateKey: '', keyVersion: '1' })
+const gateway = reactive({ url: 'https://gateway-qiuat.banqinonprod.com', clientId: '', privateKey: '', keyVersion: '1' })
 const order = reactive({ amount: '1000', buyerId: '', redirectUrl: location.href })
 const copied = ref(false)
 
@@ -323,15 +325,14 @@ async function superQiRequest(path, body) {
     Signature: `algorithm=RSA256, keyVersion=${gateway.keyVersion}, signature=${signature}`,
   }
 
-  // The gateway has no CORS headers, so `npm run dev` forwards through the proxy in vite.config.js
-  const url = import.meta.env.DEV ? `/superqi-gateway${path}` : `${gateway.url.replace(/\/$/, '')}${path}`
-  if (import.meta.env.DEV) headers['X-Superqi-Gateway'] = gateway.url
+  const url = `${GATEWAY_PROXY || gateway.url.replace(/\/$/, '')}${path}`
+  if (GATEWAY_PROXY) headers['X-Superqi-Gateway'] = gateway.url
 
   try {
     const response = await fetch(url, { method: 'POST', headers, body: rawBody })
     return await response.json()
   } catch (error) {
-    throw new Error(import.meta.env.DEV ? errorMessage(error) : `${errorMessage(error)}. Likely blocked by CORS: run \`npm run dev\` on desktop.`)
+    throw new Error(GATEWAY_PROXY ? errorMessage(error) : `${errorMessage(error)}. Likely blocked by CORS: set VITE_SUPERQI_PROXY to the deployed worker URL.`)
   }
 }
 

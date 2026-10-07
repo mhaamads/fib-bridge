@@ -100,7 +100,7 @@ async function sendOrderCallback() {
   }
 
   try {
-    const res = await fetch('https://asiamall.asiacell.com/partners/ordercallback', {
+    const res = await fetch(`${import.meta.env.DEV ? '/proxy/asiamall' : 'https://asiamall.asiacell.com'}/partners/ordercallback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

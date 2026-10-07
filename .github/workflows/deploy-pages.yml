@@ -33,6 +33,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_SUPERQI_PROXY: ${{ vars.SUPERQI_PROXY }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
