@@ -25,6 +25,19 @@
       <button v-if="loggedIn" class="button reset-button" type="button" @click="resetLogin">Reset</button>
     </div>
 
+    <button class="button secondary-button" type="button" :disabled="busy" @click="fetchAuthCode">
+      {{ busy && action === 'code' ? 'Requesting…' : 'Get auth code only (for desktop testing)' }}
+    </button>
+
+    <section v-if="authCode" class="panel">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="font-semibold">Auth code</h2>
+        <button class="text-sm text-fib font-semibold" type="button" @click="copyAuthCode">{{ copied ? 'Copied' : 'Copy' }}</button>
+      </div>
+      <pre class="mt-2 whitespace-pre-wrap break-all select-all">{{ authCode }}</pre>
+      <span class="muted text-xs">Not sent to the backend. Single use and expires in minutes — use it right away.</span>
+    </section>
+
     <section v-if="loggedIn" class="panel">
       <h2 class="font-semibold">Logged-in customer</h2>
       <pre class="mt-2 whitespace-pre-wrap break-words">{{ formatJson(userInfo) }}</pre>
@@ -88,6 +101,8 @@ const paymentState = ref('')
 const failed = ref(false)
 const status = ref('')
 const result = ref('')
+const authCode = ref('')
+const copied = ref(false)
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
@@ -178,6 +193,38 @@ async function login() {
   } finally {
     busy.value = false
     action.value = ''
+  }
+}
+
+// Requests a code without sending it to the backend, so it stays unused for a desktop test env.
+async function fetchAuthCode() {
+  failed.value = false
+  status.value = ''
+  result.value = ''
+  authCode.value = ''
+  copied.value = false
+  busy.value = true
+  action.value = 'code'
+
+  try {
+    authCode.value = await getAuthCode()
+  } catch (error) {
+    failed.value = true
+    status.value = 'Auth code request failed'
+    result.value = errorMessage(error)
+  } finally {
+    busy.value = false
+    action.value = ''
+  }
+}
+
+function copyAuthCode() {
+  const text = authCode.value
+  const onCopied = () => (copied.value = true)
+  if (typeof window.my?.setClipboard === 'function') {
+    window.my.setClipboard({ text, success: onCopied })
+  } else {
+    navigator.clipboard?.writeText(text).then(onCopied)
   }
 }
 
